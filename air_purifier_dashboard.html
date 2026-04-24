@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AirPure — Smart Purifier Dashboard</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#0a0e1a;
+    --bg2:#111627;
+    --bg3:#161d30;
+    --card:#1a2235;
+    --card2:#1f2a40;
+    --border:#2a3550;
+    --border2:#3a4870;
+    --text:#e8edf5;
+    --muted:#7a8aaa;
+    --dim:#4a5a7a;
+    --accent:#4af0b8;
+    --accent2:#00c4ff;
+    --warn:#ffb84a;
+    --danger:#ff5a5a;
+    --good:#4af0b8;
+    --moderate:#ffe066;
+    --unhealthy:#ffb84a;
+    --bad:#ff7043;
+    --hazard:#ff5a5a;
+  }
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'DM Sans',sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+  /* ── HEADER ── */
+  .header{
+    position:sticky;top:0;z-index:100;
+    background:rgba(10,14,26,0.92);
+    backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 28px;
+  }
+  .logo{display:flex;align-items:center;gap:10px}
+  .logo-icon{
+    width:36px;height:36px;border-radius:10px;
+    background:linear-gradient(135deg,#4af0b8,#00c4ff);
+    display:flex;align-items:center;justify-content:center;
+    font-size:18px;
+  }
+  .logo-text{font-size:18px;font-weight:600;letter-spacing:-0.3px}
+  .logo-sub{font-size:11px;color:var(--muted);font-family:'Space Mono',monospace}
+  .header-right{display:flex;align-items:center;gap:16px}
+  .online-badge{
+    display:flex;align-items:center;gap:6px;
+    font-size:12px;color:var(--good);
+    background:rgba(74,240,184,0.08);
+    padding:5px 12px;border-radius:20px;
+    border:1px solid rgba(74,240,184,0.2);
+  }
+  .online-dot{width:7px;height:7px;border-radius:50%;background:var(--good);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+  .time-display{font-family:'Space Mono',monospace;font-size:13px;color:var(--muted)}
+
+  /* ── LAYOUT ── */
+  .main{max-width:1200px;margin:0 auto;padding:28px 24px}
+  .section-title{
+    font-size:12px;font-weight:500;letter-spacing:1.5px;
+    text-transform:uppercase;color:var(--muted);
+    margin-bottom:14px;
+  }
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:28px}
+  .grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:28px}
+  @media(max-width:900px){
+    .grid-4{grid-template-columns:repeat(2,1fr)}
+    .grid-3{grid-template-columns:1fr}
+    .grid-2{grid-template-columns:1fr}
+  }
+  @media(max-width:500px){
+    .grid-4{grid-template-columns:1fr}
+    .main{padding:16px}
+    .header{padding:12px 16px}
+  }
+
+  /* ── CARDS ── */
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:20px;
+    transition:border-color 0.2s;
+  }
+  .card:hover{border-color:var(--border2)}
+
+  /* ── AQI HERO ── */
+  .aqi-hero{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:20px;
+    padding:28px;
+    margin-bottom:28px;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:24px;
+    align-items:center;
+  }
+  @media(max-width:700px){.aqi-hero{grid-template-columns:1fr}}
+  .aqi-big{
+    font-size:88px;font-weight:300;
+    font-family:'Space Mono',monospace;
+    line-height:1;letter-spacing:-4px;
+    transition:color 0.5s;
+  }
+  .aqi-label{font-size:13px;color:var(--muted);margin-top:4px;font-family:'Space Mono',monospace}
+  .aqi-cat{
+    display:inline-flex;align-items:center;gap:6px;
+    margin-top:10px;padding:5px 14px;border-radius:20px;
+    font-size:13px;font-weight:500;
+    transition:all 0.5s;
+  }
+  .aqi-breakdown{display:flex;flex-direction:column;gap:10px}
+  .aqi-bar-row{display:flex;flex-direction:column;gap:4px}
+  .aqi-bar-label{
+    display:flex;justify-content:space-between;
+    font-size:12px;color:var(--muted);
+  }
+  .bar-track{
+    height:6px;border-radius:3px;
+    background:var(--border);overflow:hidden;
+  }
+  .bar-fill{
+    height:100%;border-radius:3px;
+    transition:width 0.8s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* ── SENSOR CARDS ── */
+  .sensor-val{
+    font-size:32px;font-weight:500;
+    font-family:'Space Mono',monospace;
+    margin:8px 0 2px;
+  }
+  .sensor-unit{font-size:12px;color:var(--muted)}
+  .sensor-label{font-size:12px;color:var(--muted);margin-bottom:2px}
+  .sensor-icon{font-size:22px;margin-bottom:6px}
+
+  /* ── POWER CONTROL ── */
+  .power-section{
+    background:var(--card);border:1px solid var(--border);
+    border-radius:20px;padding:24px;margin-bottom:28px;
+  }
+  .power-row{
+    display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:20px;
+  }
+  .power-info h2{font-size:20px;font-weight:500}
+  .power-info p{font-size:13px;color:var(--muted);margin-top:2px}
+  .toggle-wrap{display:flex;align-items:center;gap:12px}
+  .toggle{
+    position:relative;width:64px;height:34px;
+    cursor:pointer;
+  }
+  .toggle input{opacity:0;width:0;height:0}
+  .toggle-slider{
+    position:absolute;inset:0;
+    background:var(--border2);border-radius:34px;
+    transition:0.3s;cursor:pointer;
+  }
+  .toggle-slider:before{
+    content:'';position:absolute;
+    width:26px;height:26px;left:4px;bottom:4px;
+    background:#fff;border-radius:50%;
+    transition:0.3s;
+  }
+  input:checked + .toggle-slider{background:var(--accent)}
+  input:checked + .toggle-slider:before{transform:translateX(30px)}
+  .toggle-label{font-size:15px;font-weight:500}
+
+  /* ── MODE TABS ── */
+  .mode-tabs{display:flex;gap:8px;flex-wrap:wrap}
+  .mode-tab{
+    padding:9px 18px;border-radius:10px;
+    border:1px solid var(--border);
+    font-size:13px;font-weight:500;
+    background:transparent;color:var(--muted);
+    cursor:pointer;transition:all 0.15s;
+    font-family:'DM Sans',sans-serif;
+  }
+  .mode-tab:hover{border-color:var(--border2);color:var(--text)}
+  .mode-tab.active{
+    background:var(--accent);color:#0a0e1a;
+    border-color:var(--accent);
+  }
+
+  /* ── FAN SPEED ── */
+  .speed-buttons{display:flex;gap:8px;margin-top:14px}
+  .speed-btn{
+    flex:1;padding:10px;border-radius:10px;
+    border:1px solid var(--border);
+    background:transparent;color:var(--muted);
+    font-size:13px;font-weight:500;cursor:pointer;
+    transition:all 0.15s;font-family:'DM Sans',sans-serif;
+  }
+  .speed-btn:hover{border-color:var(--border2);color:var(--text)}
+  .speed-btn.active{border-color:var(--accent2);color:var(--accent2);background:rgba(0,196,255,0.08)}
+
+  /* ── SETTINGS ── */
+  .setting-row{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 0;border-bottom:1px solid var(--border);
+  }
+  .setting-row:last-child{border-bottom:none}
+  .setting-info label{font-size:14px;font-weight:500;display:block}
+  .setting-info span{font-size:12px;color:var(--muted)}
+  .setting-input{
+    background:var(--bg3);border:1px solid var(--border);
+    color:var(--text);border-radius:8px;
+    padding:8px 12px;font-size:14px;
+    font-family:'DM Sans',sans-serif;
+    width:120px;text-align:right;
+  }
+  .setting-input:focus{outline:none;border-color:var(--accent)}
+  .save-btn{
+    background:var(--accent);color:#0a0e1a;
+    border:none;border-radius:10px;
+    padding:10px 24px;font-size:14px;font-weight:600;
+    cursor:pointer;transition:opacity 0.15s;
+    font-family:'DM Sans',sans-serif;margin-top:16px;
+  }
+  .save-btn:hover{opacity:0.85}
+  .save-btn:active{transform:scale(0.97)}
+
+  /* ── CHART ── */
+  .chart-wrap{position:relative;height:200px}
+
+  /* ── RPM GAUGE ── */
+  .rpm-display{
+    display:flex;align-items:center;gap:10px;margin-top:12px;
+  }
+  .rpm-bars{display:flex;gap:3px;align-items:flex-end}
+  .rpm-bar{
+    width:6px;border-radius:3px;
+    background:var(--border);
+    transition:background 0.4s,height 0.4s;
+  }
+
+  /* ── ALERT STATUS ── */
+  .alert-box{
+    background:rgba(255,90,90,0.08);
+    border:1px solid rgba(255,90,90,0.25);
+    border-radius:10px;padding:12px 16px;
+    font-size:13px;color:#ff8a8a;
+    margin-top:12px;display:none;
+  }
+  .alert-box.show{display:block}
+
+  /* ── HISTORY TABLE ── */
+  .history-list{display:flex;flex-direction:column;gap:8px;max-height:240px;overflow-y:auto}
+  .history-item{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 14px;border-radius:10px;
+    background:var(--bg3);
+    font-size:13px;
+  }
+  .history-aqi{
+    font-family:'Space Mono',monospace;
+    font-size:14px;font-weight:700;
+  }
+  .history-time{color:var(--muted);font-size:12px}
+
+  /* ── SCHEDULER ── */
+  .time-input{
+    background:var(--bg3);border:1px solid var(--border);
+    color:var(--text);border-radius:8px;
+    padding:8px 12px;font-size:14px;
+    font-family:'Space Mono',monospace;
+    width:110px;
+  }
+  .time-input:focus{outline:none;border-color:var(--accent)}
+
+  /* ── TOAST ── */
+  .toast{
+    position:fixed;bottom:24px;right:24px;
+    background:var(--card2);border:1px solid var(--accent);
+    color:var(--text);border-radius:10px;
+    padding:12px 20px;font-size:14px;
+    transform:translateY(80px);opacity:0;
+    transition:all 0.3s;z-index:999;
+    pointer-events:none;
+  }
+  .toast.show{transform:translateY(0);opacity:1}
+
+  /* ── CONNECTION OVERLAY ── */
+  #connecting{
+    position:fixed;inset:0;background:var(--bg);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    z-index:500;transition:opacity 0.5s;
+  }
+  .spinner{
+    width:48px;height:48px;border-radius:50%;
+    border:3px solid var(--border);
+    border-top-color:var(--accent);
+    animation:spin 0.8s linear infinite;margin-bottom:16px;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .connect-text{font-size:15px;color:var(--muted)}
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar{width:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- Connecting overlay -->
+<div id="connecting">
+  <div class="spinner"></div>
+  <p class="connect-text">Connecting to Firebase…</p>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">🌬</div>
+    <div>
+      <div class="logo-text">AirPure</div>
+      <div class="logo-sub">Living Room · ESP32</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="online-badge" id="onlineBadge">
+      <div class="online-dot"></div>
+      <span id="onlineText">Connecting…</span>
+    </div>
+    <div class="time-display" id="clockDisplay">--:--</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- AQI Hero -->
+  <div class="section-title">Air Quality Index</div>
+  <div class="aqi-hero">
+    <div>
+      <div class="aqi-big" id="aqiBig">--</div>
+      <div class="aqi-label">AQI · COMPOSITE</div>
+      <div class="aqi-cat" id="aqiCat" style="background:rgba(100,100,100,0.15);color:#888">
+        <span>●</span><span id="aqiCatText">Loading…</span>
+      </div>
+    </div>
+    <div class="aqi-breakdown">
+      <div class="aqi-bar-row">
+        <div class="aqi-bar-label">
+          <span>PM2.5 contribution</span>
+          <span id="aqiPmVal">-- AQI</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="barPm" style="width:0%;background:var(--accent2)"></div></div>
+      </div>
+      <div class="aqi-bar-row">
+        <div class="aqi-bar-label">
+          <span>CO₂ contribution</span>
+          <span id="aqiCo2Val">-- AQI</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="barCo2" style="width:0%;background:var(--warn)"></div></div>
+      </div>
+      <div class="aqi-bar-row">
+        <div class="aqi-bar-label">
+          <span>PM10</span>
+          <span id="pm10Val">-- µg/m³</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="barPm10" style="width:0%;background:var(--accent)"></div></div>
+      </div>
+      <div id="alertBox" class="alert-box">
+        ⚠ AQI exceeds your threshold — fan forced to HIGH
+      </div>
+    </div>
+  </div>
+
+  <!-- Sensor grid -->
+  <div class="section-title">Live Sensors</div>
+  <div class="grid-4" style="margin-bottom:28px">
+    <div class="card">
+      <div class="sensor-icon">🌡</div>
+      <div class="sensor-label">Temperature</div>
+      <div class="sensor-val" id="tempVal">--</div>
+      <div class="sensor-unit">°C</div>
+    </div>
+    <div class="card">
+      <div class="sensor-icon">💧</div>
+      <div class="sensor-label">Humidity</div>
+      <div class="sensor-val" id="humVal">--</div>
+      <div class="sensor-unit">%</div>
+    </div>
+    <div class="card">
+      <div class="sensor-icon">💨</div>
+      <div class="sensor-label">PM2.5</div>
+      <div class="sensor-val" id="pm25Val">--</div>
+      <div class="sensor-unit">µg/m³</div>
+    </div>
+    <div class="card">
+      <div class="sensor-icon">🌫</div>
+      <div class="sensor-label">CO₂</div>
+      <div class="sensor-val" id="co2Val">--</div>
+      <div class="sensor-unit">ppm</div>
+    </div>
+  </div>
+
+  <!-- Power & Control -->
+  <div class="section-title">Control</div>
+  <div class="power-section">
+    <div class="power-row">
+      <div class="power-info">
+        <h2>Air Purifier</h2>
+        <p id="powerSubtext">Loading state…</p>
+      </div>
+      <div class="toggle-wrap">
+        <span class="toggle-label" id="powerLabel">OFF</span>
+        <label class="toggle">
+          <input type="checkbox" id="powerToggle" onchange="setPower(this.checked)"/>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Mode -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;letter-spacing:1px;text-transform:uppercase">Mode</div>
+      <div class="mode-tabs">
+        <button class="mode-tab" onclick="setMode('Auto')">⚡ Auto</button>
+        <button class="mode-tab" onclick="setMode('Manual')">🎛 Manual</button>
+        <button class="mode-tab" onclick="setMode('Sleep')">🌙 Sleep</button>
+        <button class="mode-tab" onclick="setMode('Energy')">🍃 Energy Saving</button>
+      </div>
+    </div>
+
+    <!-- Fan speed (manual) -->
+    <div id="manualSpeedSection" style="display:none">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;letter-spacing:1px;text-transform:uppercase">Fan Speed</div>
+      <div class="speed-buttons">
+        <button class="speed-btn" onclick="setFanSpeed('Low')">Low</button>
+        <button class="speed-btn" onclick="setFanSpeed('Medium')">Medium</button>
+        <button class="speed-btn" onclick="setFanSpeed('High')">High</button>
+      </div>
+    </div>
+
+    <!-- Fan RPM -->
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Fan RPM (live)</div>
+      <div class="rpm-display">
+        <div style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700" id="rpmVal">0</div>
+        <div style="font-size:12px;color:var(--muted)">RPM</div>
+        <div class="rpm-bars" id="rpmBars">
+          <div class="rpm-bar" style="height:8px" id="rb1"></div>
+          <div class="rpm-bar" style="height:12px" id="rb2"></div>
+          <div class="rpm-bar" style="height:18px" id="rb3"></div>
+          <div class="rpm-bar" style="height:24px" id="rb4"></div>
+          <div class="rpm-bar" style="height:28px" id="rb5"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="section-title">Trends</div>
+  <div class="grid-2">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div>
+          <div style="font-weight:500">AQI (24h)</div>
+          <div style="font-size:12px;color:var(--muted)">Last 24 readings (1 min each)</div>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="aqiChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div>
+          <div style="font-weight:500">Temperature (24h)</div>
+          <div style="font-size:12px;color:var(--muted)">Last 24 readings (1 min each)</div>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- 7 day -->
+  <div class="card" style="margin-bottom:28px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div>
+        <div style="font-weight:500">7-Day AQI Trend</div>
+        <div style="font-size:12px;color:var(--muted)">One reading per day</div>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="weekChart"></canvas></div>
+  </div>
+
+  <!-- Settings + Scheduler -->
+  <div class="grid-2">
+    <div class="card">
+      <div style="font-weight:500;margin-bottom:16px">⚙ Automation Settings</div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <label>AQI Alert Threshold</label>
+          <span>Auto-force HIGH fan above this</span>
+        </div>
+        <input class="setting-input" type="number" id="aqiThreshInput" value="100" min="0" max="500"/>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <label>Auto Turn ON Rule</label>
+          <span>Purifier turns on if AQI exceeds threshold</span>
+        </div>
+        <label class="toggle" style="width:50px;height:28px">
+          <input type="checkbox" id="autoOnToggle"/>
+          <span class="toggle-slider" style="border-radius:28px"></span>
+        </label>
+      </div>
+
+      <button class="save-btn" onclick="saveSettings()">Save Settings</button>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:500;margin-bottom:16px">⏰ Scheduler</div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <label>Scheduler Enabled</label>
+          <span>Auto on/off by time</span>
+        </div>
+        <label class="toggle" style="width:50px;height:28px">
+          <input type="checkbox" id="schedulerToggle" onchange="setScheduler(this.checked)"/>
+          <span class="toggle-slider" style="border-radius:28px"></span>
+        </label>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <label>Turn ON at</label>
+        </div>
+        <input class="time-input" type="time" id="onTimeInput" value="07:00"/>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <label>Turn OFF at</label>
+        </div>
+        <input class="time-input" type="time" id="offTimeInput" value="23:00"/>
+      </div>
+
+      <button class="save-btn" onclick="saveScheduler()">Save Schedule</button>
+    </div>
+  </div>
+
+  <!-- Recent History -->
+  <div style="margin-top:4px">
+    <div class="section-title">Recent History</div>
+    <div class="card">
+      <div id="historyList" class="history-list">
+        <div style="text-align:center;color:var(--muted);font-size:13px;padding:20px">Loading history…</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+//  FIREBASE CONFIG — from your ESP32 code
+// ══════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey:    "AIzaSyDF8qY_asGsG_6j-tDaH3_tT2Py5hy67rI",
+  databaseURL: "https://air-purifier-4c698-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "air-purifier-4c698",
+};
+
+firebase.initializeApp(firebaseConfig);
+const db   = firebase.database();
+const ROOT = "/devices/living_room";
+
+// ══════════════════════════════════════════════
+//  CLOCK
+// ══════════════════════════════════════════════
+function updateClock(){
+  const now = new Date();
+  document.getElementById('clockDisplay').textContent =
+    now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ══════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+// ══════════════════════════════════════════════
+//  AQI CATEGORY
+// ══════════════════════════════════════════════
+function aqiCategory(v){
+  if(v<=50)  return {label:'Good',       color:'#4af0b8', bg:'rgba(74,240,184,0.12)' };
+  if(v<=100) return {label:'Moderate',   color:'#ffe066', bg:'rgba(255,224,102,0.12)'};
+  if(v<=150) return {label:'Unhealthy for sensitive', color:'#ffb84a', bg:'rgba(255,184,74,0.12)'};
+  if(v<=200) return {label:'Unhealthy',  color:'#ff7043', bg:'rgba(255,112,67,0.12)' };
+  if(v<=300) return {label:'Very Unhealthy', color:'#e040fb', bg:'rgba(224,64,251,0.12)'};
+  return      {label:'Hazardous',        color:'#ff5a5a', bg:'rgba(255,90,90,0.12)'  };
+}
+
+// ══════════════════════════════════════════════
+//  CHARTS SETUP
+// ══════════════════════════════════════════════
+const chartDefaults = {
+  type:'line',
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    animation:{duration:600},
+    plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a2235',titleColor:'#e8edf5',bodyColor:'#7a8aaa',borderColor:'#2a3550',borderWidth:1}},
+    scales:{
+      x:{ticks:{color:'#4a5a7a',font:{size:10},maxTicksLimit:8},grid:{color:'rgba(42,53,80,0.5)'}},
+      y:{ticks:{color:'#4a5a7a',font:{size:10}},grid:{color:'rgba(42,53,80,0.5)'}}
+    }
+  }
+};
+
+function makeChart(id, color, label){
+  return new Chart(document.getElementById(id).getContext('2d'),{
+    ...chartDefaults,
+    data:{
+      labels:[],
+      datasets:[{
+        data:[],label,
+        borderColor:color,
+        backgroundColor: color+'22',
+        fill:true,tension:0.4,
+        pointRadius:2,pointHoverRadius:5,
+        borderWidth:2,
+      }]
+    },
+    options:{...chartDefaults.options}
+  });
+}
+
+const aqiChart  = makeChart('aqiChart',  '#4af0b8', 'AQI');
+const tempChart = makeChart('tempChart', '#00c4ff', '°C');
+const weekChart = makeChart('weekChart', '#ffb84a', 'Daily AQI');
+
+function updateChart(chart, values, labelFn){
+  chart.data.labels   = values.map((_,i)=>labelFn(i,values.length));
+  chart.data.datasets[0].data = values;
+  chart.update();
+}
+
+// ══════════════════════════════════════════════
+//  LIVE DATA LISTENER
+// ══════════════════════════════════════════════
+db.ref(ROOT).on('value', snap => {
+  const d = snap.val();
+  if(!d) return;
+
+  // Hide connecting overlay
+  const ov = document.getElementById('connecting');
+  if(ov){ ov.style.opacity='0'; setTimeout(()=>ov.style.display='none',500); }
+
+  // Online badge
+  const online = d.is_online;
+  const badge = document.getElementById('onlineBadge');
+  document.getElementById('onlineText').textContent = online ? 'Online' : 'Offline';
+  badge.style.borderColor = online ? 'rgba(74,240,184,0.2)' : 'rgba(255,90,90,0.2)';
+  badge.style.background  = online ? 'rgba(74,240,184,0.08)' : 'rgba(255,90,90,0.08)';
+  badge.style.color       = online ? 'var(--good)' : 'var(--danger)';
+
+  // AQI
+  const aqi     = d.aqi || 0;
+  const aqiPm   = d.aqi_from_pm  || 0;
+  const aqiCo2  = d.aqi_from_co2 || 0;
+  const cat     = aqiCategory(aqi);
+
+  document.getElementById('aqiBig').textContent    = aqi;
+  document.getElementById('aqiBig').style.color    = cat.color;
+  document.getElementById('aqiCatText').textContent = cat.label;
+  const catEl = document.getElementById('aqiCat');
+  catEl.style.background = cat.bg;
+  catEl.style.color      = cat.color;
+  catEl.style.borderColor = 'transparent';
+
+  document.getElementById('aqiPmVal').textContent  = aqiPm  + ' AQI';
+  document.getElementById('aqiCo2Val').textContent = aqiCo2 + ' AQI';
+  document.getElementById('pm10Val').textContent   = (d.pm10||0).toFixed(1) + ' µg/m³';
+  document.getElementById('barPm').style.width     = Math.min(100, aqiPm/5) + '%';
+  document.getElementById('barCo2').style.width    = Math.min(100, aqiCo2/5) + '%';
+  document.getElementById('barPm10').style.width   = Math.min(100, (d.pm10||0)/3) + '%';
+
+  // Sensors
+  document.getElementById('tempVal').textContent = (d.temperature||0).toFixed(1);
+  document.getElementById('humVal').textContent  = Math.round(d.humidity||0);
+  document.getElementById('pm25Val').textContent = (d.pm25||0).toFixed(1);
+  document.getElementById('co2Val').textContent  = Math.round(d.co2||0);
+
+  // Fan RPM
+  const rpm = d.fan_rpm || 0;
+  document.getElementById('rpmVal').textContent = rpm;
+  const bars = [document.getElementById('rb1'),document.getElementById('rb2'),
+                document.getElementById('rb3'),document.getElementById('rb4'),document.getElementById('rb5')];
+  const rpmPct = Math.min(1, rpm/3000);
+  bars.forEach((b,i)=>{
+    const on = rpmPct > i/5;
+    b.style.background = on ? 'var(--accent)' : 'var(--border)';
+  });
+
+  // Power
+  const isOn = d.is_on || false;
+  document.getElementById('powerToggle').checked = isOn;
+  document.getElementById('powerLabel').textContent = isOn ? 'ON' : 'OFF';
+  document.getElementById('powerSubtext').textContent =
+    isOn ? 'Purifier is running · ' + (d.mode||'Auto') + ' mode' : 'Purifier is off';
+
+  // Mode tabs
+  const mode = d.mode || 'Auto';
+  document.querySelectorAll('.mode-tab').forEach(t=>{
+    t.classList.toggle('active', t.textContent.includes(mode));
+  });
+  document.getElementById('manualSpeedSection').style.display =
+    mode === 'Manual' ? 'block' : 'none';
+
+  // Fan speed
+  const fs = d.fan_speed || 'Medium';
+  document.querySelectorAll('.speed-btn').forEach(b=>{
+    b.classList.toggle('active', b.textContent === fs);
+  });
+
+  // Threshold alert
+  const thresh = d.settings?.alerts?.aqi_threshold || 100;
+  document.getElementById('aqiThreshInput').value = thresh;
+  document.getElementById('alertBox').classList.toggle('show', aqi > thresh && isOn);
+
+  // Scheduler
+  const sched = d.settings?.scheduler;
+  if(sched){
+    document.getElementById('schedulerToggle').checked = sched.enabled||false;
+    document.getElementById('onTimeInput').value  = sched.on_time  || '07:00';
+    document.getElementById('offTimeInput').value = sched.off_time || '23:00';
+  }
+
+  // Charts — AQI history
+  if(d.aqi_history && Array.isArray(d.aqi_history)){
+    updateChart(aqiChart, d.aqi_history, (i,len)=>{
+      const minsAgo = (len-1-i);
+      return minsAgo === 0 ? 'now' : minsAgo+'m';
+    });
+  }
+  if(d.temp_history && Array.isArray(d.temp_history)){
+    updateChart(tempChart, d.temp_history.map(v=>+v.toFixed(1)), (i,len)=>{
+      const minsAgo = (len-1-i);
+      return minsAgo === 0 ? 'now' : minsAgo+'m';
+    });
+  }
+  if(d.aqi_history_7d && Array.isArray(d.aqi_history_7d)){
+    const days = ['7d ago','6d ago','5d ago','4d ago','3d ago','2d ago','Today'];
+    updateChart(weekChart, d.aqi_history_7d, (i)=>days[i]||('Day '+(i+1)));
+  }
+
+  // History list
+  if(d.history){
+    const items = Object.entries(d.history)
+      .sort((a,b)=>b[1].timestamp - a[1].timestamp)
+      .slice(0,20);
+    const listEl = document.getElementById('historyList');
+    if(items.length===0){
+      listEl.innerHTML='<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px">No history yet — records appear every 5 minutes</div>';
+    } else {
+      listEl.innerHTML = items.map(([,rec])=>{
+        const aq  = rec.aqi || 0;
+        const c   = aqiCategory(aq);
+        const ts  = rec.timestamp ? new Date(rec.timestamp) : null;
+        const timeStr = ts ? ts.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}) : '--';
+        const dateStr = ts ? ts.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '';
+        return `<div class="history-item">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="history-aqi" style="color:${c.color}">${aq}</div>
+            <div style="color:var(--muted);font-size:12px">${rec.status||'Auto Mode'}</div>
+          </div>
+          <div class="history-time">${dateStr} ${timeStr}</div>
+        </div>`;
+      }).join('');
+    }
+  }
+});
+
+// ══════════════════════════════════════════════
+//  CONTROLS — write to Firebase
+// ══════════════════════════════════════════════
+function setPower(on){
+  db.ref(ROOT+'/is_on').set(on);
+  toast(on ? '✓ Purifier turned ON' : '✓ Purifier turned OFF');
+}
+
+function setMode(mode){
+  db.ref(ROOT+'/mode').set(mode);
+  toast('✓ Mode set to '+mode);
+}
+
+function setFanSpeed(speed){
+  db.ref(ROOT+'/fan_speed').set(speed);
+  toast('✓ Fan speed: '+speed);
+}
+
+function setScheduler(on){
+  db.ref(ROOT+'/settings/scheduler/enabled').set(on);
+}
+
+function saveSettings(){
+  const thresh  = parseInt(document.getElementById('aqiThreshInput').value)||100;
+  db.ref(ROOT+'/settings/alerts/aqi_threshold').set(thresh);
+  toast('✓ Settings saved');
+
+  // Auto-on rule
+  const autoOn = document.getElementById('autoOnToggle').checked;
+  if(autoOn){
+    const rule = {condition:'AQI > '+thresh, action:'Turn ON purifier', enabled:true};
+    db.ref(ROOT+'/settings/automation/rules/0').set(rule);
+  }
+}
+
+function saveScheduler(){
+  const onTime  = document.getElementById('onTimeInput').value;
+  const offTime = document.getElementById('offTimeInput').value;
+  const enabled = document.getElementById('schedulerToggle').checked;
+  db.ref(ROOT+'/settings/scheduler').set({enabled, on_time:onTime, off_time:offTime});
+  toast('✓ Schedule saved');
+}
+
+// Show connecting state timeout
+setTimeout(()=>{
+  const ov = document.getElementById('connecting');
+  if(ov && ov.style.display !== 'none'){
+    ov.querySelector('.connect-text').textContent =
+      'Cannot reach Firebase. Check your internet or Firebase rules.';
+  }
+}, 8000);
+</script>
+</body>
+</html>
